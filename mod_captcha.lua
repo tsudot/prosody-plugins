@@ -17,12 +17,11 @@ local function generate_captcha(event)
     local img_src = result:match([[<img .*alt="".* src="([^"]+)"]])
     url = url..img_src
     
-    if # requests[session.attr.from] >= 1 then
-        table.insert(requests[session.attr.from], img_src)
+    if requests[session.attr.from] then
+        requests[session.attr.from][img_src] = true;
     else
         requests[session.attr.from] = {};
         requests[session.attr.from][img_src] = true;
-    end
 
     local reply = st.reply(stanza);
     reply:tag("body"):text("Enter the valid keys"):up()
