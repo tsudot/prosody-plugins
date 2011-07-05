@@ -23,8 +23,13 @@ local function generate_captcha_response(event, result, status, r)
         requests[stanza.attr.from][img_src] = true;
     end
 
+    -- Store events here for firing later
+    events[challenge_id] = event
+
+    stanza.name = "message";
+
     local reply = st.reply(stanza);
-    reply:tag("body"):text("Enter the valid keys"):up()
+    reply:tag("body"):text("Please visit "..url.." to unblock your messages"):up()
         :tag("x", {xmlns="jabber:x:oob"}):tag("url"):text("some_url"):up():up()
         :tag("captcha", {xmlns="urn:xmpp:captcha"})
         :tag("x", {xmlns="jabber:x:data", type="form"})
@@ -36,15 +41,24 @@ local function generate_captcha_response(event, result, status, r)
         :tag("media", {xmmlns = "urn:xmpp:media-element", height="80", width="290"})
         :tag("uri", {type="image/jpeg"}):text(url):up():up()
 
-    session.send(reply);
-    
+
+    if session.type == "component" then
+        return
+    else
+        session.send(reply);
+    end
 end
 
 local function generate_captcha(event)
-    local options = {}
-    options.body = "k=6LfCpsMSAAAAANFxM-ji6ct8drXYBHITxNQRnlAx";
-    local request_url = "http://www.google.com/recaptcha/api/noscript";
-    http.request(request_url, options, function(...) return generate_captcha_response(event, ...) end);
+    local stanza = event.stanza;
+    if stanza.attr.captcha_verified and stanza.attr.captcha_verified == "true" then
+        return nil
+    else
+        local options = {}
+        options.body = "k=6LfCpsMSAAAAANFxM-ji6ct8drXYBHITxNQRnlAx";
+        local request_url = "http://www.google.com/recaptcha/api/noscript";
+        http.request(request_url, options, function(...) return generate_captcha_response(event, ...) end);
+    end
 
 end
 
@@ -58,18 +72,23 @@ local captcha_response_layout = dataforms_new{
     {name = "ocr",type="text-single", label = "ocr"};
 };
 
-
-local function verify_captcha_response(event, result, status, r)
+local function verify_captcha_response(event, challenge_id, result, status, r)
     local session, stanza = event.origin, event.stanza;
     local node, host, resource = jid.split(stanza.attr.to);
-    if r and r=="true"then
-            session.send(st.iq({type="result", from=host}));
-       -- else
-        --    session.send(st.error_reply(stanza, "cancel", "service-unavailable", "Not a valid input"));
-       -- end
-  --  else 
-   --     session.send(st.error_reply(stanza, "cancel", "service-unavailable", "Not a valid input"));
-   -- end
+    local entries = {}
+    for entry in result:gmatch("[^\n]+") do
+        table.insert(entries, entry);
+    end
+
+    if entries[1] and entries[1]=="true" then
+        session.send(st.iq({type="result", from=host}));
+        -- fire the original event again with an added field of captcha_verified = 'true'
+        local original_event = events.challenge_id;
+        original_event.stanza.attr.verifired = "true";
+        module:fire_event("presence/full", original_event)
+    else
+        session.send(st.error_reply(stanza, "cancel", "service-unavailable", "Not a valid input"));
+    end
 end
 
 local function verify_captcha(event)
@@ -78,20 +97,14 @@ local function verify_captcha(event)
     local captcha_form = stanza.tags[1]:get_child("x", "jabber:x:data");
     local fields = captcha_response_layout:data(captcha_form);
     local url = "http://www.google.com/recaptcha/api/verify";
---    if requests[stanza.attr.from] and requests[stanza.attr.from][fields.challenge] and fields.ocr ~= "" then
-    if true then
-        --requests[stanza.attr.from][fields.challenge] = nil;
+    if requests[stanza.attr.from] and requests[stanza.attr.from][fields.challenge] and fields.ocr ~= "" then
+        requests[stanza.attr.from][fields.challenge] = nil;
         local options = {}
         options.body = "privatekey="..pri_key.."&remoteip="..session.ip.."&challenge="..fields.challenge.."&response="..fields.ocr
-
-        http.request(url, options, function(...) return verify_captcha_response(event, ...) end);
+        http.request(url, options, function(...) return verify_captcha_response(event, fields.challenge, ...) end);
     end
 end
 
 
---generate_captcha(event);
-verify_captcha(event2);
-
-
---module:hook("presence/full", generate_captcha, 20);
---module:hook("iq-set/host/urn:xmpp:captcha:captcha", verify_response)
+module:hook("presence/full", generate_captcha, 20);
+module:hook("iq-set/host/urn:xmpp:captcha:captcha", verify_captcha)
