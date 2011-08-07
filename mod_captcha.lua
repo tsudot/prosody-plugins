@@ -5,7 +5,13 @@ local dataforms_new = require "util.dataforms".new;
 local array = require "util.array";
 local requests = {};
 local events = {};
-local private_key = "6LfCpsMSAAAAAKmUMphjzqNvHZyd3IjtBeNjmyDR"
+local private_key = module:get_option("recaptcha_private_key");
+local api_key = module:get_option("recaptcha_api_key");
+local verify_url = "http://www.google.com/recaptcha/api/verify";
+local request_url = "http://www.google.com/recaptcha/api/noscript";
+local recaptcha_url = "http://www.google.com/recaptcha/api/";
+
+
 
 local captcha_layout = dataforms_new{
     title = "Captcha Form";
@@ -18,12 +24,11 @@ local captcha_layout = dataforms_new{
 };
 
 local function generate_captcha_response(event, result, status, r)
-    local url = "http://www.google.com/recaptcha/api/";
     local session, stanza = event.origin, event.stanza;
     local node, host, resource = jid.split(stanza.attr.to);
     local ip = session.ip;
     local img_src = result:match([[<img .*alt="".* src="([^"]+)"]])
-    url = url..img_src
+    recaptcha_url = recaptcha_url..img_src
     local challenge_id = img_src:match("=.+")
     local sid = stanza.attr.id;
     if requests[stanza.attr.from] then
@@ -39,11 +44,11 @@ local function generate_captcha_response(event, result, status, r)
     stanza.name = "message";
 
     local reply = st.reply(stanza);
-    reply:tag("body"):text("Please visit "..url.." to unblock your messages"):up()
-        :tag("x", {xmlns="jabber:x:oob"}):tag("url"):text(url):up():up()
+    reply:tag("body"):text("Please visit "..recaptcha_url.." to unblock your messages"):up()
+        :tag("x", {xmlns="jabber:x:oob"}):tag("url"):text(recaptcha_url):up():up()
         :tag("captcha", {xmlns="urn:xmpp:captcha"}):add_child(captcha_layout:form())
         :tag("media", {xmmlns = "urn:xmpp:media-element", height="80", width="290"})
-        :tag("uri", {type="image/jpeg"}):text(url):up():up()
+        :tag("uri", {type="image/jpeg"}):text(recaptcha_url):up():up()
 
     if session.type == "component" then
         return
@@ -58,8 +63,7 @@ local function generate_captcha(event)
         return nil
     else
         local options = {}
-        options.body = "k=6LfCpsMSAAAAANFxM-ji6ct8drXYBHITxNQRnlAx";
-        local request_url = "http://www.google.com/recaptcha/api/noscript";
+        options.body = api_key;
         http.request(request_url, options, function(...) return generate_captcha_response(event, ...) end);
     end
 end
@@ -85,16 +89,14 @@ local function verify_captcha_response(event, challenge_id, result, status, r)
 end
 
 local function verify_captcha(event)
-    local pri_key = "6LfCpsMSAAAAAKmUMphjzqNvHZyd3IjtBeNjmyDR";
     local session, stanza = event.origin, event.stanza;
     local captcha_form = stanza.tags[1]:get_child("x", "jabber:x:data");
     local fields = captcha_layout:data(captcha_form);
-    local url = "http://www.google.com/recaptcha/api/verify";
     if requests[stanza.attr.from] and requests[stanza.attr.from][fields.challenge] and fields.ocr ~= "" then
         requests[stanza.attr.from][fields.challenge] = nil;
         local options = {}
-        options.body = "privatekey="..pri_key.."&remoteip="..session.ip.."&challenge="..fields.challenge.."&response="..fields.ocr
-        http.request(url, options, function(...) return verify_captcha_response(event, fields.challenge, ...) end);
+        options.body = "privatekey="..private_key.."&remoteip="..session.ip.."&challenge="..fields.challenge.."&response="..fields.ocr
+        http.request(verify_url, options, function(...) return verify_captcha_response(event, fields.challenge, ...) end);
     end
 end
 
