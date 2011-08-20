@@ -32,3 +32,13 @@ module:hook('iq-get/host/http://jabber.org/protocol/jinglenodes#channel', functi
 
     session.send(reply)
 end);
+
+                            
+
+
+
+
+
+
+
+    
