@@ -11,9 +11,9 @@ module:hook('iq-get/host/http://jabber.org/protocol/jinglenodes', function(event
     local reply =  st.iq({type='result', id=stanza.attr.id, from=host, to=stanza.attr.from})
     
     reply:tag("services", {xmlns="http://jabber.org/protocol/jinglenodes"})
-        :tag("relay", {policy="public", address=host, protocol="udp"}):up()
-        :tag("tracker", {policy="public", address=host, protocol="udp"}):up()
-        :tag("stun", {policy="public", address=stun_ip, port=stun_port, protocol="udp"}):up()
+        :tag("relay", {policy="public", address=host, protocol="tcp"}):up()
+        :tag("tracker", {policy="public", address=host, protocol="tcp"}):up()
+        :tag("stun", {policy="public", address=stun_ip, port=stun_port, protocol="tcp"}):up()
 
     session.send(reply);
 end);
@@ -26,19 +26,9 @@ module:hook('iq-get/host/http://jabber.org/protocol/jinglenodes#channel', functi
                            host = host,
                            localport = "35800",
                            remoteport = "35802",
-                           protocol = "udp",
+                           protocol = "tcp",
                            expire = "60"
                        })
 
     session.send(reply)
 end);
-
-                            
-
-
-
-
-
-
-
-    
