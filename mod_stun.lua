@@ -16,6 +16,10 @@ end
 
 function dec_to_bin(dec)
 	hex = string.format("%x", dec)
+	while string.len(hex) < 4 do
+		hex = "0"..hex
+	end
+		
 	return hex_to_bin(hex)
 end
 
