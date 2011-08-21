@@ -15,7 +15,7 @@ function hex_to_bin(hex)
 end
 
 function dec_to_bin(dec)
-	hex = string.format("%x", dec)
+	hex = string.format("%02x", dec)
 	while string.len(hex) < 4 do
 		hex = "0"..hex
 	end
@@ -50,7 +50,7 @@ function stun_listener.onincoming(conn, data)
         -- Handle data
         (function(session, data)
 
-                if data:match(0x0001) then
+                if data:match(hex_to_bin("0001")) then
 			port = conn:port()
 			ip = conn:ip()
 			local ip_parts = ""
