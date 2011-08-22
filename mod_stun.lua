@@ -72,3 +72,6 @@ function stun_listener.ondisconnect(conn, err)
 		sessions[conn] = nil;
 	end
 end
+
+connlistener_register("stun", stun_listener);
+prosody.net_activate_ports("stun", "stun", {3478}, "tcp");
